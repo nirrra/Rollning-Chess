@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rolling-chess"
+version = "0.1.0"
+description = "A horizontal-cylinder chess variant rules engine and local game UI."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Rolling Chess Contributors" }
+]
+
+[project.scripts]
+rolling-chess = "rolling_chess.cli:main"
+rolling-chess-web = "rolling_chess.web:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+

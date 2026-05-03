@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rolling Chess</title>
+    <link rel="stylesheet" href="/src/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="board-shell" aria-label="Rolling Chess board">
+        <div class="files top" aria-hidden="true">
+          <span>a</span><span>b</span><span>c</span><span>d</span>
+          <span>e</span><span>f</span><span>g</span><span>h</span>
+        </div>
+        <div class="play-area">
+          <div class="ranks" aria-hidden="true">
+            <span>8</span><span>7</span><span>6</span><span>5</span>
+            <span>4</span><span>3</span><span>2</span><span>1</span>
+          </div>
+          <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+          <div class="ranks" aria-hidden="true">
+            <span>8</span><span>7</span><span>6</span><span>5</span>
+            <span>4</span><span>3</span><span>2</span><span>1</span>
+          </div>
+        </div>
+        <div class="files" aria-hidden="true">
+          <span>a</span><span>b</span><span>c</span><span>d</span>
+          <span>e</span><span>f</span><span>g</span><span>h</span>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <header>
+          <h1>Rolling Chess</h1>
+          <div id="status" class="status">Starting</div>
+        </header>
+        <div class="actions" aria-label="Game actions">
+          <button id="new-game" type="button">New</button>
+          <button id="undo" type="button">Undo</button>
+          <button id="redo" type="button">Redo</button>
+          <button id="save" type="button">Save</button>
+          <button id="load" type="button">Load</button>
+        </div>
+        <ol id="history" class="history" aria-label="Move history"></ol>
+      </aside>
+    </main>
+
+    <div id="promotion" class="promotion hidden" role="dialog" aria-modal="true">
+      <div class="promotion-box">
+        <button data-piece="q" type="button">Queen</button>
+        <button data-piece="r" type="button">Rook</button>
+        <button data-piece="b" type="button">Bishop</button>
+        <button data-piece="n" type="button">Knight</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

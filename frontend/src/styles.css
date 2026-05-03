@@ -1,0 +1,241 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f1ea;
+  --ink: #18212b;
+  --muted: #65717f;
+  --light: #e8d8b8;
+  --dark: #7d8d77;
+  --selected: #e9b44c;
+  --target: #3b82f6;
+  --capture: #c24136;
+  --panel: #ffffff;
+  --line: #cbd2d9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+  font: inherit;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 320px;
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+}
+
+.board-shell {
+  width: min(82vh, calc(100vw - 420px));
+  min-width: 320px;
+  justify-self: center;
+}
+
+.play-area {
+  display: grid;
+  grid-template-columns: 24px 1fr 24px;
+  gap: 8px;
+  align-items: center;
+}
+
+.board {
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  border: 2px solid #23313f;
+  box-shadow: 0 18px 40px rgba(35, 49, 63, 0.18);
+}
+
+.square {
+  position: relative;
+  border: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.square.light {
+  background: var(--light);
+}
+
+.square.dark {
+  background: var(--dark);
+}
+
+.square.selected {
+  outline: 4px solid var(--selected);
+  outline-offset: -4px;
+}
+
+.square.target::before,
+.square.capture::before {
+  content: "";
+  position: absolute;
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background: var(--target);
+  opacity: 0.85;
+}
+
+.square.capture::before {
+  width: 70%;
+  height: 70%;
+  border: 4px solid var(--capture);
+  background: transparent;
+}
+
+.square.wrap-target::after {
+  content: "";
+  position: absolute;
+  inset-inline: 4px;
+  top: 4px;
+  height: 5px;
+  border-radius: 999px;
+  background: #111827;
+}
+
+.piece {
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", serif;
+  font-size: clamp(28px, 7vmin, 66px);
+  line-height: 1;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.24);
+  pointer-events: none;
+}
+
+.files,
+.ranks {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.files {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  padding: 6px 32px;
+  text-align: center;
+}
+
+.ranks {
+  display: grid;
+  grid-template-rows: repeat(8, 1fr);
+  height: 100%;
+  align-items: center;
+  text-align: center;
+}
+
+.side-panel {
+  align-self: stretch;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 18px;
+  padding-block: 24px;
+}
+
+.side-panel h1 {
+  margin: 0 0 8px;
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.status {
+  min-height: 28px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.actions button,
+.promotion-box button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.actions button:hover,
+.promotion-box button:hover {
+  border-color: #23313f;
+}
+
+.history {
+  margin: 0;
+  padding: 12px 0 0 22px;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.history li {
+  padding-block: 4px;
+}
+
+.promotion {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(24, 33, 43, 0.34);
+}
+
+.promotion.hidden {
+  display: none;
+}
+
+.promotion-box {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(82px, 1fr));
+  gap: 10px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(24, 33, 43, 0.22);
+}
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: 1fr;
+    align-items: start;
+    padding: 16px;
+  }
+
+  .board-shell {
+    width: min(100%, 620px);
+  }
+
+  .side-panel {
+    width: min(100%, 620px);
+    justify-self: center;
+    padding-block: 0 20px;
+  }
+}
+
