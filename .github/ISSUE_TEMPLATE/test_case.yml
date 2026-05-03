@@ -1,0 +1,27 @@
+name: Test case
+description: Contribute a position or sequence that should be covered by tests.
+title: "[Test]: "
+labels: ["type: test-case", "status: needs-info"]
+body:
+  - type: textarea
+    id: position
+    attributes:
+      label: Position or move sequence
+      placeholder: "White: Ke1, Pa5. Black: Ke8, ph5. Side to move: white."
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: Expected result
+      placeholder: "a5h6 is legal, white is in check, stalemate, etc."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this matters
+      description: What edge case or regression does this cover?
+    validations:
+      required: true
+

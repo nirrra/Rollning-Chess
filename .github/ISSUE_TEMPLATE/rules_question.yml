@@ -1,0 +1,39 @@
+name: Rules question
+description: Ask about an ambiguous Rolling Chess rule or edge case.
+title: "[Rules]: "
+labels: ["type: rules-question", "status: needs-info"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Rule questions should be grounded in a concrete board position.
+  - type: textarea
+    id: position
+    attributes:
+      label: Board position
+      description: List pieces by square, or provide a move sequence that reaches the position.
+      placeholder: "White: Ke1, Ra4. Black: Ke8. Side to move: white."
+    validations:
+      required: true
+  - type: input
+    id: candidate_move
+    attributes:
+      label: Candidate move or result
+      placeholder: "a4e4, checkmate, stalemate, etc."
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What rule interpretation are you asking about?
+    validations:
+      required: true
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Your reasoning
+      description: Optional. Explain how you think the horizontal wrap should apply.
+    validations:
+      required: false
+

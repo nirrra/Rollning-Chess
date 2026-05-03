@@ -1,0 +1,47 @@
+name: Bug report
+description: Report broken behavior, crashes, invalid moves, or UI/API errors.
+title: "[Bug]: "
+labels: ["type: bug", "status: needs-info"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Include enough detail for a maintainer to reproduce the problem.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List exact steps, commands, or moves.
+      placeholder: |
+        1. Start from ...
+        2. Play ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, Python version, browser if relevant"
+    validations:
+      required: false
+

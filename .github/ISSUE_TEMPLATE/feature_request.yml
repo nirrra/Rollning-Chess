@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a new capability or workflow.
+title: "[Feature]: "
+labels: ["type: feature", "status: needs-info"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or user need
+      description: What should this help players, contributors, or maintainers do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful version.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - engine
+        - web-api
+        - frontend
+        - docs
+        - tests
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Testing ideas
+      description: How should this be verified?
+    validations:
+      required: false
+
