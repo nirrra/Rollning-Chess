@@ -1,4 +1,8 @@
 const boardEl = document.querySelector("#board");
+const filesTopEl = document.querySelector("#files-top");
+const filesBottomEl = document.querySelector("#files-bottom");
+const leftFileInput = document.querySelector("#left-file");
+const leftFileLabel = document.querySelector("#left-file-label");
 const statusEl = document.querySelector("#status");
 const historyEl = document.querySelector("#history");
 const newGameButton = document.querySelector("#new-game");
@@ -36,9 +40,18 @@ let gameId = null;
 let state = null;
 let selected = null;
 let pendingPromotion = null;
+let leftFileIndex = 0;
 
 function squareName(file, rank) {
   return `${files[file]}${rank}`;
+}
+
+function displayFileAt(position) {
+  return (leftFileIndex + position) % 8;
+}
+
+function rotatedFiles() {
+  return files.map((_, index) => files[displayFileAt(index)]);
 }
 
 function fileIndex(square) {
@@ -47,6 +60,7 @@ function fileIndex(square) {
 
 function render() {
   boardEl.innerHTML = "";
+  renderFileLabels();
   const legalMoves = state ? state.legal_moves : [];
   const selectedMoves = selected
     ? legalMoves.filter((move) => move.slice(0, 2) === selected)
@@ -54,7 +68,8 @@ function render() {
   const targets = new Map(selectedMoves.map((move) => [move.slice(2, 4), move]));
 
   for (let rank = 8; rank >= 1; rank -= 1) {
-    for (let file = 0; file < 8; file += 1) {
+    for (let displayFile = 0; displayFile < 8; displayFile += 1) {
+      const file = displayFileAt(displayFile);
       const square = squareName(file, rank);
       const button = document.createElement("button");
       button.type = "button";
@@ -90,6 +105,19 @@ function render() {
   renderStatus();
   renderCapturedPieces();
   renderHistory();
+}
+
+function renderFileLabels() {
+  const labels = rotatedFiles();
+  [filesTopEl, filesBottomEl].forEach((container) => {
+    container.innerHTML = "";
+    labels.forEach((file) => {
+      const span = document.createElement("span");
+      span.textContent = file;
+      container.append(span);
+    });
+  });
+  leftFileLabel.textContent = files[leftFileIndex].toUpperCase();
 }
 
 function renderStatus() {
@@ -335,5 +363,9 @@ undoButton.addEventListener("click", undo);
 redoButton.addEventListener("click", redo);
 saveButton.addEventListener("click", saveGame);
 loadButton.addEventListener("click", loadGame);
+leftFileInput.addEventListener("input", () => {
+  leftFileIndex = Number(leftFileInput.value);
+  render();
+});
 
 newGame();

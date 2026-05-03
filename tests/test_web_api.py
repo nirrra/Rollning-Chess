@@ -111,6 +111,7 @@ def test_web_server_serves_frontend(web_server):
     assert "Rolling Chess" in html
     assert "white-captured" in html
     assert "black-captured" in html
+    assert "left-file" in html
 
     status, js = request(web_server, "GET", "/src/main.js")
     assert status == 200
@@ -118,3 +119,4 @@ def test_web_server_serves_frontend(web_server):
     assert "saveGame" in js
     assert "capturedPiecesFromBoard" in js
     assert "formatHistoryEntry" in js
+    assert "leftFileIndex" in js
