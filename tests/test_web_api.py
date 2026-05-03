@@ -49,6 +49,7 @@ def test_web_api_game_lifecycle(web_server):
     assert status == 200
     assert moved["state"]["turn"] == "black"
     assert moved["state"]["history"] == ["e2e4"]
+    assert moved["state"]["history_details"][-1]["capture"] is None
 
     status, rejected = request(web_server, "POST", f"/api/games/{game_id}/moves", {"move": "e2e5"})
     assert status == 400
@@ -65,6 +66,24 @@ def test_web_api_game_lifecycle(web_server):
     assert redone["state"]["history"] == ["e2e4"]
 
 
+def test_web_api_history_details_show_capture(web_server):
+    status, created = request(web_server, "POST", "/api/games")
+    assert status == 200
+    game_id = created["game_id"]
+
+    for move in ("e2e4", "d7d5", "e4d5"):
+        status, payload = request(web_server, "POST", f"/api/games/{game_id}/moves", {"move": move})
+        assert status == 200
+
+    detail = payload["state"]["history_details"][-1]
+    assert detail["move"] == "e4d5"
+    assert detail["from"] == "e4"
+    assert detail["to"] == "d5"
+    assert detail["capture"] == "p"
+    assert detail["capture_symbol"] == "p"
+    assert detail["capture_kind"] == "normal"
+
+
 def test_web_api_export_import(web_server):
     status, created = request(web_server, "POST", "/api/games")
     assert status == 200
@@ -75,12 +94,14 @@ def test_web_api_export_import(web_server):
     status, exported = request(web_server, "GET", f"/api/games/{game_id}/export")
     assert status == 200
     assert exported["state"]["history"] == ["e2e4"]
+    assert exported["state"]["history_details"][0]["move"] == "e2e4"
     assert "legal_moves" not in exported["state"]
 
     status, imported = request(web_server, "POST", "/api/games/import", exported)
     assert status == 200
     assert imported["game_id"] != game_id
     assert imported["state"]["history"] == moved["state"]["history"]
+    assert imported["state"]["history_details"] == moved["state"]["history_details"]
     assert imported["state"]["turn"] == moved["state"]["turn"]
 
 
@@ -88,8 +109,12 @@ def test_web_server_serves_frontend(web_server):
     status, html = request(web_server, "GET", "/")
     assert status == 200
     assert "Rolling Chess" in html
+    assert "white-captured" in html
+    assert "black-captured" in html
 
     status, js = request(web_server, "GET", "/src/main.js")
     assert status == 200
     assert "newGame" in js
     assert "saveGame" in js
+    assert "capturedPiecesFromBoard" in js
+    assert "formatHistoryEntry" in js

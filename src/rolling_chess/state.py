@@ -13,7 +13,7 @@ from .board import (
     square_name,
 )
 from .exceptions import GameOverError, IllegalMoveError
-from .moves import GameResult, GameStatus, Move, MoveKind
+from .moves import GameResult, GameStatus, Move, MoveKind, MoveRecord
 from .pieces import Color, Piece, PieceType
 
 
@@ -26,6 +26,7 @@ class GameState:
     halfmove_clock: int = 0
     fullmove_number: int = 1
     history: tuple[str, ...] = ()
+    history_details: tuple[MoveRecord, ...] = ()
 
     @classmethod
     def initial(cls) -> "GameState":
@@ -59,6 +60,18 @@ class GameState:
         history_value = data.get("history", [])
         if not isinstance(history_value, list):
             raise ValueError("history must be a list")
+        history_details_value = data.get("history_details")
+        if history_details_value is not None and not isinstance(history_details_value, list):
+            raise ValueError("history_details must be a list")
+        if history_details_value is None:
+            history_details = tuple(MoveRecord.from_move_text(str(move)) for move in history_value)
+        else:
+            details: list[MoveRecord] = []
+            for item in history_details_value:
+                if not isinstance(item, dict):
+                    raise ValueError("history_details items must be objects")
+                details.append(MoveRecord.from_dict(item))
+            history_details = tuple(details)
 
         return cls(
             board=tuple(board),
@@ -68,6 +81,7 @@ class GameState:
             halfmove_clock=int(data.get("halfmove_clock", 0)),
             fullmove_number=int(data.get("fullmove_number", 1)),
             history=tuple(str(move) for move in history_value),
+            history_details=history_details,
         )
 
     def with_piece(self, square: str | int, piece: Piece | None) -> "GameState":
@@ -134,6 +148,7 @@ class GameState:
         en_passant_target = self._next_en_passant_target(move, moving_piece)
         halfmove_clock = 0 if moving_piece.type is PieceType.PAWN or captured_piece else self.halfmove_clock + 1
         fullmove_number = self.fullmove_number + (1 if self.turn is Color.BLACK else 0)
+        move_record = self._move_record(move, captured_piece)
 
         return GameState(
             board=tuple(board),
@@ -143,6 +158,7 @@ class GameState:
             halfmove_clock=halfmove_clock,
             fullmove_number=fullmove_number,
             history=self.history + (move.to_uci(),),
+            history_details=self.history_details + (move_record,),
         )
 
     def _apply_castle_rook_move(self, board: list[Piece | None], move: Move) -> None:
@@ -188,6 +204,20 @@ class GameState:
         middle_rank = (rank_of(move.to_square) + rank_of(move.from_square)) // 2
         return make_square(file_of(move.from_square), middle_rank)
 
+    @staticmethod
+    def _move_record(move: Move, captured_piece: Piece | None) -> MoveRecord:
+        return MoveRecord(
+            move=move.to_uci(),
+            from_square=square_name(move.from_square),
+            to_square=square_name(move.to_square),
+            promotion=move.promotion.value if move.promotion else None,
+            capture=captured_piece.type.value if captured_piece else None,
+            capture_symbol=captured_piece.symbol if captured_piece else None,
+            capture_kind="en_passant"
+            if captured_piece and move.kind is MoveKind.EN_PASSANT
+            else ("normal" if captured_piece else None),
+        )
+
     def to_dict(self, include_legal_moves: bool = True) -> dict[str, object]:
         pieces: dict[str, str] = {}
         for index, piece in enumerate(self.board):
@@ -204,6 +234,7 @@ class GameState:
             "halfmove_clock": self.halfmove_clock,
             "fullmove_number": self.fullmove_number,
             "history": list(self.history),
+            "history_details": [record.to_dict() for record in self.history_details],
             "is_check": self.is_check(self.turn),
             "result": {
                 "status": result.status.value,

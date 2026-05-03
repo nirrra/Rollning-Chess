@@ -12,6 +12,25 @@ def test_cross_boundary_en_passant(position):
     state = state.apply_move("a5h6")
     assert state.piece_at("h6").type is PieceType.PAWN
     assert state.piece_at("h5") is None
+    detail = state.to_dict()["history_details"][-1]
+    assert detail["move"] == "a5h6"
+    assert detail["capture"] == "p"
+    assert detail["capture_symbol"] == "p"
+    assert detail["capture_kind"] == "en_passant"
+
+
+def test_history_details_record_normal_capture(position):
+    state = position({"e1": "K", "e8": "k", "a5": "P", "h6": "r"})
+
+    state = state.apply_move("a5h6")
+
+    detail = state.to_dict()["history_details"][-1]
+    assert detail["move"] == "a5h6"
+    assert detail["from"] == "a5"
+    assert detail["to"] == "h6"
+    assert detail["capture"] == "r"
+    assert detail["capture_symbol"] == "r"
+    assert detail["capture_kind"] == "normal"
 
 
 def test_standard_castling_is_available_but_no_extra_wrapped_castle(position):
@@ -47,4 +66,3 @@ def test_pawn_promotion_requires_choice(position):
 
     promoted = state.apply_move("a7a8q")
     assert promoted.piece_at("a8").type is PieceType.QUEEN
-

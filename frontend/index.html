@@ -42,6 +42,16 @@
           <button id="save" type="button">Save</button>
           <button id="load" type="button">Load</button>
         </div>
+        <section class="captured-panel" aria-label="Captured pieces">
+          <div class="captured-row">
+            <span class="captured-label">White captured</span>
+            <span id="white-captured" class="captured-pieces" aria-live="polite">-</span>
+          </div>
+          <div class="captured-row">
+            <span class="captured-label">Black captured</span>
+            <span id="black-captured" class="captured-pieces" aria-live="polite">-</span>
+          </div>
+        </section>
         <ol id="history" class="history" aria-label="Move history"></ol>
       </aside>
     </main>

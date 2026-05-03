@@ -4,7 +4,7 @@ from .exceptions import (
     InvalidMoveFormatError,
     InvalidSquareError,
 )
-from .moves import GameResult, GameStatus, Move, MoveKind
+from .moves import GameResult, GameStatus, Move, MoveKind, MoveRecord
 from .pieces import Color, Piece, PieceType
 from .state import GameState
 
@@ -19,7 +19,7 @@ __all__ = [
     "InvalidSquareError",
     "Move",
     "MoveKind",
+    "MoveRecord",
     "Piece",
     "PieceType",
 ]
-

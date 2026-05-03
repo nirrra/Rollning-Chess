@@ -6,10 +6,17 @@ const undoButton = document.querySelector("#undo");
 const redoButton = document.querySelector("#redo");
 const saveButton = document.querySelector("#save");
 const loadButton = document.querySelector("#load");
+const whiteCapturedEl = document.querySelector("#white-captured");
+const blackCapturedEl = document.querySelector("#black-captured");
 const promotionEl = document.querySelector("#promotion");
 const storageKey = "rolling-chess-save";
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+const pieceOrder = ["q", "r", "b", "n", "p"];
+const initialMaterial = {
+  white: { k: 1, q: 1, r: 2, b: 2, n: 2, p: 8 },
+  black: { k: 1, q: 1, r: 2, b: 2, n: 2, p: 8 },
+};
 const pieceSymbols = {
   K: "♔",
   Q: "♕",
@@ -81,6 +88,7 @@ function render() {
   }
 
   renderStatus();
+  renderCapturedPieces();
   renderHistory();
 }
 
@@ -105,11 +113,78 @@ function renderHistory() {
   if (!state) {
     return;
   }
-  state.history.forEach((move) => {
+  historyEntries().forEach((entry) => {
     const item = document.createElement("li");
-    item.textContent = move;
+    item.textContent = formatHistoryEntry(entry);
     historyEl.append(item);
   });
+}
+
+function historyEntries() {
+  if (Array.isArray(state.history_details) && state.history_details.length > 0) {
+    return state.history_details;
+  }
+  return state.history.map((move) => ({ move }));
+}
+
+function formatHistoryEntry(entry) {
+  if (!entry.capture) {
+    return entry.move;
+  }
+  const promotion = entry.promotion || "";
+  const captureSymbol = pieceSymbols[entry.capture_symbol] || pieceSymbols[entry.capture] || entry.capture;
+  const enPassant = entry.capture_kind === "en_passant" ? " e.p." : "";
+  return `${entry.from}x${entry.to}${promotion}${enPassant} ${captureSymbol}`;
+}
+
+function renderCapturedPieces() {
+  if (!state) {
+    whiteCapturedEl.textContent = "-";
+    blackCapturedEl.textContent = "-";
+    return;
+  }
+  const captured = capturedPiecesFromBoard(state.pieces);
+  whiteCapturedEl.textContent = renderPieceList(captured.byWhite, "black") || "-";
+  blackCapturedEl.textContent = renderPieceList(captured.byBlack, "white") || "-";
+}
+
+function capturedPiecesFromBoard(pieces) {
+  const current = {
+    white: { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 },
+    black: { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 },
+  };
+  Object.values(pieces).forEach((piece) => {
+    const color = piece === piece.toUpperCase() ? "white" : "black";
+    current[color][piece.toLowerCase()] += 1;
+  });
+
+  return {
+    byWhite: missingMaterial("black", current.black),
+    byBlack: missingMaterial("white", current.white),
+  };
+}
+
+function missingMaterial(color, currentCounts) {
+  const missing = {};
+  pieceOrder.forEach((type) => {
+    missing[type] = Math.max(0, initialMaterial[color][type] - currentCounts[type]);
+  });
+
+  let livePromotions = 0;
+  ["q", "r", "b", "n"].forEach((type) => {
+    livePromotions += Math.max(0, currentCounts[type] - initialMaterial[color][type]);
+  });
+  missing.p = Math.max(0, missing.p - livePromotions);
+  return missing;
+}
+
+function renderPieceList(counts, color) {
+  return pieceOrder
+    .flatMap((type) => {
+      const symbol = color === "white" ? type.toUpperCase() : type;
+      return Array.from({ length: counts[type] }, () => pieceSymbols[symbol]);
+    })
+    .join("");
 }
 
 function handleSquareClick(square) {
