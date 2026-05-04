@@ -148,7 +148,7 @@ class GameState:
         en_passant_target = self._next_en_passant_target(move, moving_piece)
         halfmove_clock = 0 if moving_piece.type is PieceType.PAWN or captured_piece else self.halfmove_clock + 1
         fullmove_number = self.fullmove_number + (1 if self.turn is Color.BLACK else 0)
-        move_record = self._move_record(move, captured_piece)
+        move_record = self._move_record(move, moving_piece, captured_piece)
 
         return GameState(
             board=tuple(board),
@@ -205,11 +205,15 @@ class GameState:
         return make_square(file_of(move.from_square), middle_rank)
 
     @staticmethod
-    def _move_record(move: Move, captured_piece: Piece | None) -> MoveRecord:
+    def _move_record(
+        move: Move, moving_piece: Piece, captured_piece: Piece | None
+    ) -> MoveRecord:
         return MoveRecord(
             move=move.to_uci(),
             from_square=square_name(move.from_square),
             to_square=square_name(move.to_square),
+            piece=moving_piece.type.value,
+            piece_symbol=moving_piece.symbol,
             promotion=move.promotion.value if move.promotion else None,
             capture=captured_piece.type.value if captured_piece else None,
             capture_symbol=captured_piece.symbol if captured_piece else None,

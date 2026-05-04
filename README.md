@@ -28,3 +28,26 @@ python -m rolling_chess.web --host 127.0.0.1 --port 8000
 ```
 
 Then open `http://127.0.0.1:8000/`.
+
+Run LAN play:
+
+```powershell
+$env:PYTHONPATH='src'
+python -m rolling_chess.web --host 0.0.0.0 --port 8000
+```
+
+Then open `http://<host-lan-ip>:8000/` from another device on the same LAN.
+
+There are two ways to start a LAN match:
+
+1. Create a room on the host, then join by room code.
+   - On the host page, click `Create LAN Room`.
+   - Share the room code shown in the URL or page.
+   - On the other device, open `http://<host-lan-ip>:8000/`, enter the room code, and click `Join Room`.
+
+2. Create a room on the host, then share the room link.
+   - On the host page, click `Create LAN Room`.
+   - Share a link like `http://<host-lan-ip>:8000/room/ABC123`.
+   - The other device opens the link, enters a nickname if needed, and joins the room.
+
+Use the host machine's LAN IP, not `127.0.0.1`, for other devices.

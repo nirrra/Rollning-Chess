@@ -36,6 +36,8 @@ class MoveRecord:
     move: str
     from_square: str
     to_square: str
+    piece: str | None = None
+    piece_symbol: str | None = None
     promotion: str | None = None
     capture: str | None = None
     capture_symbol: str | None = None
@@ -60,6 +62,8 @@ class MoveRecord:
         to_square = data.get("to", move[2:4])
         if not isinstance(from_square, str) or not isinstance(to_square, str):
             raise ValueError("history detail from/to must be strings")
+        piece = data.get("piece")
+        piece_symbol = data.get("piece_symbol")
         promotion = data.get("promotion")
         capture = data.get("capture")
         capture_symbol = data.get("capture_symbol")
@@ -68,6 +72,8 @@ class MoveRecord:
             move=move,
             from_square=from_square,
             to_square=to_square,
+            piece=str(piece) if piece is not None else None,
+            piece_symbol=str(piece_symbol) if piece_symbol is not None else None,
             promotion=str(promotion) if promotion is not None else None,
             capture=str(capture) if capture is not None else None,
             capture_symbol=str(capture_symbol) if capture_symbol is not None else None,
@@ -79,6 +85,8 @@ class MoveRecord:
             "move": self.move,
             "from": self.from_square,
             "to": self.to_square,
+            "piece": self.piece,
+            "piece_symbol": self.piece_symbol,
             "promotion": self.promotion,
             "capture": self.capture,
             "capture_symbol": self.capture_symbol,

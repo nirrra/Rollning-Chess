@@ -11,9 +11,20 @@ requires-python = ">=3.11"
 authors = [
   { name = "Rolling Chess Contributors" }
 ]
+dependencies = [
+  "fastapi>=0.110",
+  "numpy>=1.24",
+  "uvicorn[standard]>=0.27",
+]
+
+[project.optional-dependencies]
+ai = [
+  "torch>=2.2",
+]
 
 [project.scripts]
 rolling-chess = "rolling_chess.cli:main"
+rolling-chess-ai = "rolling_chess.ai.cli:main"
 rolling-chess-web = "rolling_chess.web:main"
 
 [tool.setuptools.packages.find]
@@ -23,4 +34,3 @@ where = ["src"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-q"
-

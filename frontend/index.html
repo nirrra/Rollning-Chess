@@ -4,53 +4,160 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Rolling Chess</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/src/styles.css">
   </head>
   <body>
-    <main class="app">
+    <section id="lobby" class="lobby" aria-label="Rolling Chess start page">
+      <div class="lobby-card">
+        <div class="lobby-brand">
+          <div class="compass-mark" aria-hidden="true">✥</div>
+          <div>
+            <h1>Rolling Chess</h1>
+            <p>Local board play and LAN room play from one host computer.</p>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Nickname</span>
+          <input id="nickname" type="text" maxlength="24" autocomplete="nickname" placeholder="Atlas">
+        </label>
+
+        <div class="lobby-actions">
+          <button id="local-game" type="button">Local Game</button>
+          <button id="create-room" type="button">Create LAN Room</button>
+        </div>
+
+        <section class="ai-start" aria-label="Play against AI">
+          <div class="ai-start-heading">
+            <h2>Play vs AI</h2>
+          </div>
+          <div class="ai-start-controls">
+            <label class="field">
+              <span>Your Color</span>
+              <select id="ai-player-color">
+                <option value="white">White</option>
+                <option value="black">Black</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Difficulty</span>
+              <select id="ai-difficulty">
+                <option value="easy">Easy</option>
+                <option value="normal" selected>Normal</option>
+                <option value="experimental">Experimental</option>
+              </select>
+            </label>
+            <button id="start-ai-game" type="button">Start AI Game</button>
+          </div>
+        </section>
+
+        <form id="join-room-form" class="join-room">
+          <label class="field">
+            <span>Room Code</span>
+            <input id="room-code" type="text" maxlength="8" autocomplete="off" placeholder="ABC123">
+          </label>
+          <button type="submit">Join Room</button>
+        </form>
+
+        <div id="lobby-result" class="lobby-result" aria-live="polite"></div>
+        <p class="host-note">For LAN play, host with <code>rolling-chess-web --host 0.0.0.0 --port 8000</code>, then share this page from the host IP.</p>
+      </div>
+    </section>
+
+    <main id="game-app" class="app hidden">
+      <button id="home-button" class="home-button" type="button" aria-label="Home">
+        <span aria-hidden="true">⌂</span>
+        <strong>Home</strong>
+      </button>
       <section class="board-shell" aria-label="Rolling Chess board">
-        <div id="files-top" class="files top" aria-hidden="true"></div>
-        <div class="play-area">
-          <div class="ranks" aria-hidden="true">
-            <span>8</span><span>7</span><span>6</span><span>5</span>
-            <span>4</span><span>3</span><span>2</span><span>1</span>
+        <div id="black-player" class="player-card player-card-top" data-color="black">
+          <div class="player-identity">
+            <div class="avatar avatar-black" aria-hidden="true">N</div>
+            <div>
+              <span class="player-side">Black</span>
+              <strong>Nocturne</strong>
+              <small>Rating 1500</small>
+            </div>
           </div>
-          <div id="board" class="board" role="grid" aria-label="Chess board"></div>
-          <div class="ranks" aria-hidden="true">
-            <span>8</span><span>7</span><span>6</span><span>5</span>
-            <span>4</span><span>3</span><span>2</span><span>1</span>
+          <div class="turn-indicator" aria-hidden="true">
+            <span class="turn-lamp"></span>
+            <span>Turn</span>
           </div>
+          <div class="player-captures">
+            <span>Captured</span>
+            <span id="black-captured" class="captured-pieces" aria-live="polite">-</span>
+          </div>
+          <time id="black-clock" class="player-clock" datetime="PT10M">10:00</time>
         </div>
-        <div id="files-bottom" class="files" aria-hidden="true"></div>
+
+        <div class="board-frame">
+          <div class="wrap-cue wrap-cue-left" aria-hidden="true"></div>
+          <div class="wrap-cue wrap-cue-right" aria-hidden="true"></div>
+          <div id="files-top" class="files top" aria-hidden="true"></div>
+          <div class="play-area">
+            <div class="ranks" aria-hidden="true">
+              <span>8</span><span>7</span><span>6</span><span>5</span>
+              <span>4</span><span>3</span><span>2</span><span>1</span>
+            </div>
+            <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+            <div class="ranks" aria-hidden="true">
+              <span>8</span><span>7</span><span>6</span><span>5</span>
+              <span>4</span><span>3</span><span>2</span><span>1</span>
+            </div>
+          </div>
+          <div id="files-bottom" class="files" aria-hidden="true"></div>
+        </div>
+
+        <div id="white-player" class="player-card player-card-bottom active" data-color="white">
+          <div class="player-identity">
+            <div class="avatar avatar-white" aria-hidden="true">A</div>
+            <div>
+              <span class="player-side">White</span>
+              <strong>Atlas</strong>
+              <small>Rating 1500</small>
+            </div>
+          </div>
+          <div class="turn-indicator" aria-hidden="true">
+            <span class="turn-lamp"></span>
+            <span>Turn</span>
+          </div>
+          <div class="player-captures">
+            <span>Captured</span>
+            <span id="white-captured" class="captured-pieces" aria-live="polite">-</span>
+          </div>
+          <time id="white-clock" class="player-clock" datetime="PT10M">10:00</time>
+        </div>
+
         <div class="file-rotation">
-          <label for="left-file">Left file: <span id="left-file-label">A</span></label>
-          <input id="left-file" type="range" min="0" max="7" step="1" value="0">
+          <label for="left-file">Left File: <span id="left-file-label">A</span></label>
+          <button id="rotate-prev" class="rotation-step" type="button" aria-label="Rotate files left">◀</button>
+          <input id="left-file" type="range" min="0" max="7" step="1" value="0" aria-label="Left file">
+          <button id="rotate-next" class="rotation-step" type="button" aria-label="Rotate files right">▶</button>
+          <button id="board-view-toggle" type="button">View: 15x8</button>
         </div>
+        <div id="status" class="status" aria-live="polite">Starting</div>
       </section>
 
       <aside class="side-panel">
-        <header>
+        <header class="side-header">
+          <div class="compass-mark" aria-hidden="true">✥</div>
           <h1>Rolling Chess</h1>
-          <div id="status" class="status">Starting</div>
         </header>
         <div class="actions" aria-label="Game actions">
-          <button id="new-game" type="button">New</button>
-          <button id="undo" type="button">Undo</button>
-          <button id="redo" type="button">Redo</button>
-          <button id="save" type="button">Save</button>
-          <button id="load" type="button">Load</button>
+          <button id="new-game" type="button"><span aria-hidden="true">＋</span><strong>New</strong></button>
+          <button id="undo" type="button"><span aria-hidden="true">↶</span><strong>Undo</strong></button>
+          <button id="redo" type="button"><span aria-hidden="true">↷</span><strong>Redo</strong></button>
+          <button id="save" type="button"><span aria-hidden="true">⇩</span><strong>Save</strong></button>
+          <button id="load" type="button"><span aria-hidden="true">▰</span><strong>Load</strong></button>
         </div>
-        <section class="captured-panel" aria-label="Captured pieces">
-          <div class="captured-row">
-            <span class="captured-label">White captured</span>
-            <span id="white-captured" class="captured-pieces" aria-live="polite">-</span>
+        <section class="history-panel" aria-label="Move history">
+          <div class="panel-title">
+            <span>Move History</span>
+            <span aria-hidden="true">☷</span>
           </div>
-          <div class="captured-row">
-            <span class="captured-label">Black captured</span>
-            <span id="black-captured" class="captured-pieces" aria-live="polite">-</span>
-          </div>
+          <ol id="history" class="history" aria-label="Move history"></ol>
         </section>
-        <ol id="history" class="history" aria-label="Move history"></ol>
       </aside>
     </main>
 

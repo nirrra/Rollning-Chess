@@ -14,6 +14,8 @@ def test_cross_boundary_en_passant(position):
     assert state.piece_at("h5") is None
     detail = state.to_dict()["history_details"][-1]
     assert detail["move"] == "a5h6"
+    assert detail["piece"] == "p"
+    assert detail["piece_symbol"] == "P"
     assert detail["capture"] == "p"
     assert detail["capture_symbol"] == "p"
     assert detail["capture_kind"] == "en_passant"
@@ -28,6 +30,8 @@ def test_history_details_record_normal_capture(position):
     assert detail["move"] == "a5h6"
     assert detail["from"] == "a5"
     assert detail["to"] == "h6"
+    assert detail["piece"] == "p"
+    assert detail["piece_symbol"] == "P"
     assert detail["capture"] == "r"
     assert detail["capture_symbol"] == "r"
     assert detail["capture_kind"] == "normal"
