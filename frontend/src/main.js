@@ -59,6 +59,9 @@ const pieceSymbols = {
 
 let gameId = null;
 let state = null;
+let stateHistory = [];
+let liveStateIndex = 0;
+let historyCursor = null;
 let selected = null;
 let pendingPromotion = null;
 let leftFileIndex = 0;
@@ -197,13 +200,144 @@ function navigateTo(path) {
   }
 }
 
+function displayedState() {
+  if (Number.isInteger(historyCursor) && stateHistory[historyCursor]) {
+    return stateHistory[historyCursor];
+  }
+  return state;
+}
+
+function isAtLivePosition() {
+  return historyCursor === null || historyCursor === liveStateIndex;
+}
+
+function liveMoveCount() {
+  return Array.isArray(state?.history) ? state.history.length : 0;
+}
+
+function displayedMoveCount() {
+  const current = displayedState();
+  return Array.isArray(current?.history) ? current.history.length : 0;
+}
+
+function clearHistoryReview() {
+  historyCursor = null;
+}
+
+function boundHistoryCursor() {
+  if (!Number.isInteger(historyCursor)) {
+    return;
+  }
+  if (!stateHistory[historyCursor]) {
+    historyCursor = stateHistory.length > 0 ? stateHistory.length - 1 : null;
+  }
+  if (historyCursor === liveStateIndex) {
+    historyCursor = null;
+  }
+}
+
+function stateIndexForMoveCount(moveCount) {
+  return stateHistory.findIndex(
+    (item) => Array.isArray(item?.history) && item.history.length === moveCount,
+  );
+}
+
+function syncStateHistory(payload) {
+  if (!payload?.state) {
+    return;
+  }
+  if (Array.isArray(payload.state_history) && payload.state_history.length > 0) {
+    stateHistory = payload.state_history;
+    liveStateIndex = Number.isInteger(payload.state_index)
+      ? payload.state_index
+      : stateHistory.length - 1;
+    boundHistoryCursor();
+    return;
+  }
+
+  const moveCount = Array.isArray(payload.state.history) ? payload.state.history.length : 0;
+  const existingIndex = stateIndexForMoveCount(moveCount);
+  if (existingIndex >= 0) {
+    stateHistory[existingIndex] = payload.state;
+    stateHistory = stateHistory.slice(0, existingIndex + 1);
+    liveStateIndex = existingIndex;
+  } else {
+    stateHistory.push(payload.state);
+    liveStateIndex = stateHistory.length - 1;
+  }
+  boundHistoryCursor();
+}
+
+function applyGamePayload(payload, { keepReview = false } = {}) {
+  state = payload.state;
+  syncStateHistory(payload);
+  if (!keepReview) {
+    clearHistoryReview();
+  }
+}
+
+function reviewMoveNumber(moveCount) {
+  const index = stateIndexForMoveCount(moveCount);
+  if (index < 0) {
+    statusEl.textContent = "Position is unavailable";
+    return;
+  }
+  historyCursor = index === liveStateIndex ? null : index;
+  selected = null;
+  pendingPromotion = null;
+  hidePromotion();
+  render();
+}
+
+function reviewStep(delta) {
+  if (stateHistory.length === 0) {
+    return;
+  }
+  const currentIndex = Number.isInteger(historyCursor) ? historyCursor : liveStateIndex;
+  const nextIndex = Math.max(0, Math.min(liveStateIndex, currentIndex + delta));
+  historyCursor = nextIndex === liveStateIndex ? null : nextIndex;
+  selected = null;
+  pendingPromotion = null;
+  hidePromotion();
+  render();
+}
+
+function canReviewStep(delta) {
+  if (stateHistory.length === 0) {
+    return false;
+  }
+  const currentIndex = Number.isInteger(historyCursor) ? historyCursor : liveStateIndex;
+  const nextIndex = currentIndex + delta;
+  return nextIndex >= 0 && nextIndex <= liveStateIndex && nextIndex !== currentIndex;
+}
+
+function onlineDrawButtonLabel() {
+  if (roomData?.draw_offer_by && roomData.draw_offer_by !== playerColor) {
+    return "Accept";
+  }
+  if (roomData?.draw_offer_by === playerColor) {
+    return "Offered";
+  }
+  return "Draw";
+}
+
 function configureActionButtons() {
+  [newGameButton, undoButton, redoButton, saveButton, loadButton].forEach((button) => {
+    button.disabled = false;
+  });
   if (appMode === "online") {
     newGameButton.innerHTML = '<span aria-hidden="true">⧉</span><strong>Copy Link</strong>';
-    undoButton.innerHTML = '<span aria-hidden="true">↩</span><strong>Leave</strong>';
-    redoButton.innerHTML = '<span aria-hidden="true">＋</span><strong>New Local</strong>';
-    saveButton.classList.add("hidden");
-    loadButton.classList.add("hidden");
+    undoButton.innerHTML = '<span aria-hidden="true">↶</span><strong>Back</strong>';
+    redoButton.innerHTML = '<span aria-hidden="true">↷</span><strong>Forward</strong>';
+    saveButton.innerHTML = '<span aria-hidden="true">⚑</span><strong>Resign</strong>';
+    const drawLabel = onlineDrawButtonLabel();
+    loadButton.innerHTML = `<span aria-hidden="true">½</span><strong>${drawLabel}</strong>`;
+    undoButton.disabled = !canReviewStep(-1);
+    redoButton.disabled = !canReviewStep(1);
+    saveButton.disabled = roomData?.status !== "active";
+    loadButton.disabled = roomData?.status !== "active" || roomData?.draw_offer_by === playerColor;
+    saveButton.classList.remove("hidden");
+    loadButton.classList.remove("hidden");
     return;
   }
   if (appMode === "ai") {
@@ -224,7 +358,9 @@ function configureActionButtons() {
 }
 
 function render() {
+  configureActionButtons();
   updateClockFromNow();
+  const boardState = displayedState();
   boardEl.innerHTML = "";
   boardEl.style.setProperty("--board-columns", String(visibleFileCount()));
   boardEl.closest(".board-shell").style.setProperty("--board-columns", String(visibleFileCount()));
@@ -234,8 +370,8 @@ function render() {
   boardViewToggle.dataset.view = boardView;
   renderFileLabels();
   renderRankLabels();
-  const legalMoves = state ? state.legal_moves : [];
-  const latestMove = latestMoveEntry();
+  const legalMoves = state && isAtLivePosition() ? state.legal_moves : [];
+  const latestMove = latestMoveEntry(boardState);
   const latestFrom = latestMove ? entryFromSquare(latestMove) : null;
   const latestTo = latestMove ? entryToSquare(latestMove) : null;
   const selectedMoves = selected
@@ -264,14 +400,14 @@ function render() {
         button.classList.add("last-move-to");
       }
       if (targets.has(square)) {
-        const hasPiece = Boolean(state.pieces[square]);
+        const hasPiece = Boolean(boardState.pieces[square]);
         button.classList.add(hasPiece ? "capture" : "target");
         if (Math.abs(fileIndex(selected) - fileIndex(square)) > 4) {
           button.classList.add("wrap-target");
         }
       }
 
-      const piece = state ? state.pieces[square] : null;
+      const piece = boardState ? boardState.pieces[square] : null;
       if (piece) {
         const pieceEl = document.createElement("span");
         pieceEl.className = "piece";
@@ -291,10 +427,10 @@ function render() {
     }
   }
 
-  renderStatus();
-  renderPlayerState();
+  renderStatus(boardState);
+  renderPlayerState(boardState);
   renderClocks();
-  renderCapturedPieces();
+  renderCapturedPieces(boardState);
   renderHistory();
 }
 
@@ -323,28 +459,44 @@ function renderRankLabels() {
   });
 }
 
-function renderStatus() {
-  if (!state) {
+function renderStatus(gameState = displayedState()) {
+  if (!gameState) {
     statusEl.textContent = appMode === "online" ? "Connecting" : "Starting";
     return;
   }
+  if (!isAtLivePosition()) {
+    statusEl.textContent = `Reviewing move ${displayedMoveCount()} of ${liveMoveCount()}`;
+    return;
+  }
   if (appMode === "online") {
+    if (roomData?.outcome) {
+      statusEl.textContent = onlineOutcomeText(roomData.outcome);
+      return;
+    }
     if (roomData?.status === "waiting") {
       statusEl.textContent = `Waiting for opponent · Room ${currentRoomId}`;
       return;
     }
-    if (state.result.status === "ongoing") {
-      const turnText = state.turn === playerColor ? "Your move" : "Opponent to move";
+    if (roomData?.draw_offer_by === playerColor) {
+      statusEl.textContent = `Draw offered · Room ${currentRoomId}`;
+      return;
+    }
+    if (roomData?.draw_offer_by && roomData.draw_offer_by !== playerColor) {
+      statusEl.textContent = `Opponent offered draw · Room ${currentRoomId}`;
+      return;
+    }
+    if (gameState.result.status === "ongoing") {
+      const turnText = gameState.turn === playerColor ? "Your move" : "Opponent to move";
       statusEl.textContent = `${turnText} · Room ${currentRoomId}`;
       return;
     }
   }
-  if (appMode === "ai" && state.result.status === "ongoing") {
+  if (appMode === "ai" && gameState.result.status === "ongoing") {
     if (aiThinking) {
       statusEl.textContent = "AI thinking";
       return;
     }
-    if (state.turn === playerColor) {
+    if (gameState.turn === playerColor) {
       const reply = aiLastMove ? ` · AI played ${displayMove(aiLastMove)}` : "";
       statusEl.textContent = `Your move${reply}`;
       return;
@@ -352,23 +504,39 @@ function renderStatus() {
     statusEl.textContent = "AI thinking";
     return;
   }
-  if (!state) {
+  if (!gameState) {
     statusEl.textContent = "Starting";
     return;
   }
-  if (state.result.status === "checkmate") {
-    statusEl.textContent = `Checkmate. ${state.result.winner} wins.`;
+  if (gameState.result.status === "checkmate") {
+    statusEl.textContent = `Checkmate. ${gameState.result.winner} wins.`;
     return;
   }
-  if (state.result.status === "stalemate") {
+  if (gameState.result.status === "stalemate") {
     statusEl.textContent = "Stalemate.";
     return;
   }
-  statusEl.textContent = state.is_check ? `${state.turn} in check` : `${state.turn} to move`;
+  statusEl.textContent = gameState.is_check ? `${gameState.turn} in check` : `${gameState.turn} to move`;
 }
 
-function renderPlayerState() {
-  const activeColor = state?.result.status === "ongoing" ? state.turn : null;
+function onlineOutcomeText(outcome) {
+  if (outcome.reason === "draw") {
+    return `Draw agreed · Room ${currentRoomId}`;
+  }
+  if (outcome.reason === "resignation") {
+    return `${displayFile(outcome.winner?.[0] || "")}${outcome.winner?.slice(1) || ""} wins by resignation`;
+  }
+  if (outcome.reason === "checkmate") {
+    return `Checkmate. ${outcome.winner} wins.`;
+  }
+  if (outcome.reason === "stalemate") {
+    return "Stalemate.";
+  }
+  return `Game finished · Room ${currentRoomId}`;
+}
+
+function renderPlayerState(gameState = displayedState()) {
+  const activeColor = gameState?.result.status === "ongoing" && !roomData?.outcome ? gameState.turn : null;
   whitePlayerEl.classList.toggle("active", activeColor === "white");
   blackPlayerEl.classList.toggle("active", activeColor === "black");
   whitePlayerEl.setAttribute("aria-current", activeColor === "white" ? "true" : "false");
@@ -479,25 +647,39 @@ function renderHistory() {
   if (!state) {
     return;
   }
-  historyEntries().forEach((entry) => {
+  const selectedMoveCount = displayedMoveCount();
+  historyEntries(state).forEach((entry, index) => {
+    const moveCount = index + 1;
+    const reviewIndex = stateIndexForMoveCount(moveCount);
     const item = document.createElement("li");
-    item.textContent = formatHistoryEntry(entry);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = formatHistoryEntry(entry);
+    button.disabled = reviewIndex < 0;
+    button.addEventListener("click", () => reviewMoveNumber(moveCount));
+    item.classList.toggle("active", moveCount === selectedMoveCount);
+    item.classList.toggle("live", moveCount === liveMoveCount());
+    item.classList.toggle("unavailable", reviewIndex < 0);
+    item.append(button);
     historyEl.append(item);
   });
 }
 
-function historyEntries() {
-  if (Array.isArray(state.history_details) && state.history_details.length > 0) {
-    return state.history_details;
+function historyEntries(gameState = displayedState()) {
+  if (!gameState) {
+    return [];
   }
-  return state.history.map((move) => ({ move }));
+  if (Array.isArray(gameState.history_details) && gameState.history_details.length > 0) {
+    return gameState.history_details;
+  }
+  return gameState.history.map((move) => ({ move }));
 }
 
-function latestMoveEntry() {
-  if (!state) {
+function latestMoveEntry(gameState = displayedState()) {
+  if (!gameState) {
     return null;
   }
-  const entries = historyEntries();
+  const entries = historyEntries(gameState);
   return entries.length > 0 ? entries[entries.length - 1] : null;
 }
 
@@ -528,18 +710,46 @@ function formatHistoryEntry(entry) {
   return `${prefix}${displaySquare(entryFromSquare(entry))}x${displaySquare(entryToSquare(entry))}${promotion}${enPassant} ${captureSymbol}`;
 }
 
-function renderCapturedPieces() {
-  if (!state) {
+function renderCapturedPieces(gameState = displayedState()) {
+  if (!gameState) {
     whiteCapturedEl.textContent = "-";
     blackCapturedEl.textContent = "-";
     return;
   }
-  const captured = capturedPiecesFromBoard(state.pieces);
+  const captured = capturedPiecesFromBoard(gameState.pieces, gameState);
   whiteCapturedEl.textContent = renderPieceList(captured.byWhite, "black") || "-";
   blackCapturedEl.textContent = renderPieceList(captured.byBlack, "white") || "-";
 }
 
-function capturedPiecesFromBoard(pieces) {
+function capturedPiecesFromBoard(_pieces, gameState = displayedState()) {
+  return capturedPiecesFromHistory(gameState);
+}
+
+function capturedPiecesFromHistory(gameState = displayedState()) {
+  const captured = {
+    byWhite: [],
+    byBlack: [],
+  };
+  historyEntries(gameState).forEach((entry) => {
+    if (!entry.capture_symbol && !entry.capture) {
+      return;
+    }
+    const movingSymbol = entry.piece_symbol || entry.piece || "";
+    const capturedSymbol = entry.capture_symbol || entry.capture;
+    if (!capturedSymbol) {
+      return;
+    }
+    const movingColor = movingSymbol === movingSymbol.toUpperCase() ? "white" : "black";
+    if (movingColor === "white") {
+      captured.byWhite.push(capturedSymbol);
+    } else {
+      captured.byBlack.push(capturedSymbol);
+    }
+  });
+  return captured;
+}
+
+function capturedPiecesFromMaterial(pieces) {
   const current = {
     white: { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 },
     black: { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 },
@@ -570,6 +780,9 @@ function missingMaterial(color, currentCounts) {
 }
 
 function renderPieceList(counts, color) {
+  if (Array.isArray(counts)) {
+    return counts.map((symbol) => pieceSymbols[symbol] || pieceSymbols[symbol?.toLowerCase()] || symbol).join("");
+  }
   return pieceOrder
     .flatMap((type) => {
       const symbol = color === "white" ? type.toUpperCase() : type;
@@ -754,7 +967,13 @@ function attemptMove(from, to) {
 }
 
 function isGameInteractive() {
+  if (!isAtLivePosition()) {
+    return false;
+  }
   if (!state || state.result.status !== "ongoing") {
+    return false;
+  }
+  if (roomData?.outcome) {
     return false;
   }
   if (appMode === "ai") {
@@ -775,7 +994,7 @@ async function newGame() {
   const response = await fetch("/api/games", { method: "POST" });
   const payload = await response.json();
   gameId = payload.game_id;
-  state = payload.state;
+  applyGamePayload(payload);
   selected = null;
   resetClocks();
   updateClockGateFromState();
@@ -802,7 +1021,7 @@ async function submitMove(move) {
     statusEl.textContent = payload.detail || payload.error || "Illegal move";
     return;
   }
-  state = payload.state;
+  applyGamePayload(payload);
   selected = null;
   updateClockGateFromState();
   lastClockTick = Date.now();
@@ -853,7 +1072,7 @@ async function undo() {
   const response = await fetch(`/api/games/${gameId}/undo`, { method: "POST" });
   const payload = await response.json();
   if (response.ok) {
-    state = payload.state;
+    applyGamePayload(payload);
     selected = null;
     updateClockGateFromState();
     lastClockTick = Date.now();
@@ -869,7 +1088,7 @@ async function redo() {
   const response = await fetch(`/api/games/${gameId}/redo`, { method: "POST" });
   const payload = await response.json();
   if (response.ok) {
-    state = payload.state;
+    applyGamePayload(payload);
     selected = null;
     updateClockGateFromState();
     lastClockTick = Date.now();
@@ -914,7 +1133,7 @@ async function loadGame() {
     return;
   }
   gameId = payload.game_id;
-  state = payload.state;
+  applyGamePayload(payload);
   selected = null;
   clocks = savedClocks(savedPayload);
   clockStarted = savedClockStarted(savedPayload, state);
@@ -925,7 +1144,7 @@ async function loadGame() {
 function applyAISession(payload) {
   aiGameId = payload.game_id;
   gameId = null;
-  state = payload.state;
+  applyGamePayload(payload);
   playerColor = payload.player_color;
   aiColor = payload.ai_color;
   aiDifficulty = payload.difficulty;
@@ -999,6 +1218,9 @@ async function startLocalGame(pushRoute = true) {
   aiColor = null;
   aiLastMove = null;
   aiThinking = false;
+  stateHistory = [];
+  liveStateIndex = 0;
+  clearHistoryReview();
   resetClocks();
   showGame("local");
   if (pushRoute) {
@@ -1075,6 +1297,9 @@ function startOnlineRoom(roomId) {
   aiLastMove = null;
   aiThinking = false;
   state = null;
+  stateHistory = [];
+  liveStateIndex = 0;
+  clearHistoryReview();
   selected = null;
   resetClocks();
   showGame("online");
@@ -1112,11 +1337,22 @@ function connectRoomSocket() {
 
 function handleRoomSocketMessage(message) {
   if (message.type === "room_state") {
+    const wasLive = isAtLivePosition();
     updateClockFromNow();
     roomData = message.room;
     state = roomData.state;
     roomVersion = roomData.version;
     playerColor = roomData.viewer_color || playerColor;
+    syncStateHistory({
+      state: roomData.state,
+      state_history: roomData.state_history,
+      state_index: Array.isArray(roomData.state_history) ? roomData.state_history.length - 1 : undefined,
+    });
+    if (wasLive) {
+      clearHistoryReview();
+    } else {
+      boundHistoryCursor();
+    }
     const identity = savedRoomIdentity(currentRoomId) || {};
     saveRoomIdentity(currentRoomId, {
       ...identity,
@@ -1139,7 +1375,44 @@ function submitOnlineMove(move) {
     statusEl.textContent = "Reconnecting";
     return;
   }
+  if (!isAtLivePosition()) {
+    statusEl.textContent = "Return to the current position to move";
+    return;
+  }
   roomSocket.send(JSON.stringify({ type: "move", move, version: roomVersion }));
+}
+
+function sendOnlineControl(type) {
+  if (!roomSocket || roomSocket.readyState !== WebSocket.OPEN) {
+    statusEl.textContent = "Reconnecting";
+    return false;
+  }
+  if (roomData?.status !== "active") {
+    return false;
+  }
+  roomSocket.send(JSON.stringify({ type, version: roomVersion }));
+  return true;
+}
+
+function resignOnlineGame() {
+  if (roomData?.status !== "active") {
+    return;
+  }
+  if (!window.confirm("Resign this game?")) {
+    return;
+  }
+  if (sendOnlineControl("resign")) {
+    statusEl.textContent = "Resigning";
+  }
+}
+
+function offerOrAcceptDraw() {
+  if (roomData?.status !== "active" || roomData?.draw_offer_by === playerColor) {
+    return;
+  }
+  if (sendOnlineControl("draw")) {
+    statusEl.textContent = roomData?.draw_offer_by ? "Accepting draw" : "Draw offered";
+  }
 }
 
 function cleanupOnlineConnection() {
@@ -1195,7 +1468,7 @@ function handleNewAction() {
 
 function handleUndoAction() {
   if (appMode === "online") {
-    leaveRoom();
+    reviewStep(-1);
     return;
   }
   if (appMode === "ai") {
@@ -1207,7 +1480,7 @@ function handleUndoAction() {
 
 function handleRedoAction() {
   if (appMode === "online") {
-    startLocalGame();
+    reviewStep(1);
     return;
   }
   if (appMode === "ai") {
@@ -1215,6 +1488,26 @@ function handleRedoAction() {
     return;
   }
   redo();
+}
+
+function handleSaveAction() {
+  if (appMode === "online") {
+    resignOnlineGame();
+    return;
+  }
+  if (appMode === "local") {
+    saveGame();
+  }
+}
+
+function handleLoadAction() {
+  if (appMode === "online") {
+    offerOrAcceptDraw();
+    return;
+  }
+  if (appMode === "local") {
+    loadGame();
+  }
 }
 
 function initializeRoute() {
@@ -1266,16 +1559,8 @@ joinRoomForm.addEventListener("submit", (event) => {
 newGameButton.addEventListener("click", handleNewAction);
 undoButton.addEventListener("click", handleUndoAction);
 redoButton.addEventListener("click", handleRedoAction);
-saveButton.addEventListener("click", () => {
-  if (appMode === "local") {
-    saveGame();
-  }
-});
-loadButton.addEventListener("click", () => {
-  if (appMode === "local") {
-    loadGame();
-  }
-});
+saveButton.addEventListener("click", handleSaveAction);
+loadButton.addEventListener("click", handleLoadAction);
 leftFileInput.addEventListener("input", () => {
   leftFileIndex = Number(leftFileInput.value);
   render();

@@ -56,6 +56,10 @@ class OnlineRoom:
     updated_at: datetime
     version: int = 0
     status: RoomStatus = RoomStatus.WAITING
+    state_history: list[GameState] = field(default_factory=list)
+    draw_offer_by: Color | None = None
+    finished_reason: str | None = None
+    winner: Color | None = None
     connections: dict[str, Any] = field(default_factory=dict)
 
     def player_for_token(self, token: str) -> OnlinePlayer | None:
@@ -78,7 +82,7 @@ class OnlineRoom:
         self.updated_at = datetime.now(timezone.utc)
 
     def _refresh_status(self) -> None:
-        if self.state.result().is_over:
+        if self.finished_reason or self.state.result().is_over:
             self.status = RoomStatus.FINISHED
         elif len(self.players) == 2:
             self.status = RoomStatus.ACTIVE
@@ -100,8 +104,28 @@ class OnlineRoom:
             "updated_at": self.updated_at.isoformat(),
             "viewer_color": viewer.color.value if viewer else None,
             "state": self.state.to_dict(),
+            "state_history": [
+                state.to_dict(include_legal_moves=index == len(self.state_history) - 1)
+                for index, state in enumerate(self.state_history)
+            ],
+            "draw_offer_by": self.draw_offer_by.value if self.draw_offer_by else None,
+            "outcome": self._outcome(),
             "players": players,
         }
+
+    def _outcome(self) -> dict[str, object] | None:
+        if self.finished_reason:
+            return {
+                "reason": self.finished_reason,
+                "winner": self.winner.value if self.winner else None,
+            }
+        result = self.state.result()
+        if result.is_over:
+            return {
+                "reason": result.status.value,
+                "winner": result.winner.value if result.winner else None,
+            }
+        return None
 
 
 class OnlineRoomStore:
@@ -121,12 +145,14 @@ class OnlineRoomStore:
             room_id = self._new_room_id()
             now = datetime.now(timezone.utc)
             color = _random.choice([Color.WHITE, Color.BLACK])
+            initial_state = GameState.initial()
             room = OnlineRoom(
                 room_id=room_id,
-                state=GameState.initial(),
+                state=initial_state,
                 players={},
                 created_at=now,
                 updated_at=now,
+                state_history=[initial_state],
             )
             player = room.add_player(nickname, color)
             self._rooms[room_id] = room
@@ -189,6 +215,9 @@ class OnlineRoomStore:
         with self._lock:
             self._prune_locked()
             room = self._room_or_error(room_id)
+            room._refresh_status()
+            if room.status is RoomStatus.FINISHED:
+                raise RoomError("room is finished")
             player = room.player_for_token(token)
             if player is None:
                 raise RoomError("unknown player token")
@@ -209,6 +238,39 @@ class OnlineRoomStore:
                 room.state = room.state.apply_move(move)
             except RollingChessError as exc:
                 raise RoomError(str(exc)) from exc
+            room.state_history.append(room.state)
+            room.draw_offer_by = None
+            room.version += 1
+            room.touch()
+            room._refresh_status()
+            return room
+
+    def resign(self, room_id: str, token: str, version: int) -> OnlineRoom:
+        with self._lock:
+            self._prune_locked()
+            room = self._room_or_error(room_id)
+            player = self._active_player_or_error(room, token, version)
+            room.finished_reason = "resignation"
+            room.winner = player.color.other()
+            room.draw_offer_by = None
+            room.version += 1
+            room.touch()
+            room._refresh_status()
+            return room
+
+    def offer_or_accept_draw(self, room_id: str, token: str, version: int) -> OnlineRoom:
+        with self._lock:
+            self._prune_locked()
+            room = self._room_or_error(room_id)
+            player = self._active_player_or_error(room, token, version)
+            if room.draw_offer_by and room.draw_offer_by is not player.color:
+                room.finished_reason = "draw"
+                room.winner = None
+                room.draw_offer_by = None
+            elif room.draw_offer_by is player.color:
+                raise RoomError("draw already offered")
+            else:
+                room.draw_offer_by = player.color
             room.version += 1
             room.touch()
             room._refresh_status()
@@ -223,6 +285,21 @@ class OnlineRoomStore:
         if room is None:
             raise RoomError("room not found")
         return room
+
+    def _active_player_or_error(
+        self, room: OnlineRoom, token: str, version: int
+    ) -> OnlinePlayer:
+        room._refresh_status()
+        if room.status is RoomStatus.FINISHED:
+            raise RoomError("room is finished")
+        player = room.player_for_token(token)
+        if player is None:
+            raise RoomError("unknown player token")
+        if version != room.version:
+            raise RoomError("stale room version")
+        if len(room.players) < 2:
+            raise RoomError("waiting for opponent")
+        return player
 
     def _prune_locked(self, exempt: set[str] | None = None) -> None:
         exempt = exempt or set()

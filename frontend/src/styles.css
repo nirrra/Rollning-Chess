@@ -758,6 +758,11 @@ button {
   color: var(--vermillion);
 }
 
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .rotation-step {
   font-size: 17px;
 }
@@ -894,10 +899,41 @@ button {
 .history li {
   display: list-item;
   min-height: 36px;
-  padding: 7px 12px;
+  padding: 0;
   border-bottom: 1px solid rgba(107, 84, 50, 0.3);
   color: #214e5b;
   font-weight: 900;
+}
+
+.history li button {
+  width: 100%;
+  min-height: 36px;
+  display: block;
+  border: 0;
+  padding: 7px 12px;
+  background: transparent;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history li button:hover {
+  background: rgba(191, 142, 69, 0.18);
+}
+
+.history li.active button {
+  background: rgba(15, 113, 128, 0.16);
+  color: var(--vermillion);
+}
+
+.history li.live button {
+  box-shadow: inset 3px 0 0 var(--teal);
+}
+
+.history li.unavailable button {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .history li::marker {

@@ -137,6 +137,41 @@ def test_online_room_store_prunes_inactive_lru_rooms():
     assert store.get_room(second_room.room_id).room_id == second_room.room_id
 
 
+def test_online_room_resign_finishes_room():
+    store = OnlineRoomStore()
+    room, first_player = store.create_room("Atlas")
+    room, _second_player = store.join_room(room.room_id, "Nocturne")
+
+    resigned = store.resign(room.room_id, first_player.token, room.version)
+
+    assert resigned.status.value == "finished"
+    snapshot = resigned.snapshot(first_player.token)
+    assert snapshot["outcome"] == {
+        "reason": "resignation",
+        "winner": first_player.color.other().value,
+    }
+
+
+def test_online_room_draw_requires_both_players():
+    store = OnlineRoomStore()
+    room, first_player = store.create_room("Atlas")
+    room, second_player = store.join_room(room.room_id, "Nocturne")
+
+    offered = store.offer_or_accept_draw(room.room_id, first_player.token, room.version)
+
+    assert offered.status.value == "active"
+    assert offered.draw_offer_by == first_player.color
+    assert offered.snapshot(second_player.token)["draw_offer_by"] == first_player.color.value
+
+    accepted = store.offer_or_accept_draw(room.room_id, second_player.token, offered.version)
+
+    assert accepted.status.value == "finished"
+    assert accepted.snapshot(second_player.token)["outcome"] == {
+        "reason": "draw",
+        "winner": None,
+    }
+
+
 def test_ai_game_api_white_player_move_gets_ai_reply():
     client = TestClient(create_app())
     status, created = request(
@@ -293,6 +328,10 @@ def test_web_server_serves_frontend():
     assert "ai-move" in js
     assert "/api/ai/games" in js
     assert "/game/ai/" in js
+    assert "reviewMoveNumber" in js
+    assert "state_history" in js
+    assert "resignOnlineGame" in js
+    assert "offerOrAcceptDraw" in js
 
 
 def test_online_room_create_join_rejoin_and_full_room():
@@ -358,6 +397,7 @@ def test_online_room_websocket_move_sync_and_rejections():
             assert black_update["type"] == "room_state"
             assert white_update["room"]["state"]["turn"] == "black"
             assert black_update["room"]["state"]["history"] == ["e2e4"]
+            assert len(black_update["room"]["state_history"]) == 2
             assert white_update["room"]["version"] == 1
 
             white_ws.send_json({"type": "move", "move": "d2d4", "version": 1})

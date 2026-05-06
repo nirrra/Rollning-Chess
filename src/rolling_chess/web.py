@@ -99,6 +99,14 @@ class GameStore:
                 session.touch()
             return session.current if session else None
 
+    def snapshot(self, game_id: str) -> dict[str, object] | None:
+        with self._lock:
+            session = self._active_session(game_id)
+            if not session:
+                return None
+            session.touch()
+            return _game_session_snapshot(game_id, session)
+
     def push(self, game_id: str, state: GameState) -> GameState | None:
         with self._lock:
             session = self._active_session(game_id)
@@ -162,6 +170,18 @@ class GameStore:
         return session
 
 
+def _game_session_snapshot(game_id: str, session: GameSession) -> dict[str, object]:
+    return {
+        "game_id": game_id,
+        "state": session.current.to_dict(),
+        "state_index": session.cursor,
+        "state_history": [
+            state.to_dict(include_legal_moves=index == session.cursor)
+            for index, state in enumerate(session.states)
+        ],
+    }
+
+
 def create_app(
     frontend_dir: Path | None = None,
     *,
@@ -197,14 +217,14 @@ def create_app(
     @app.post("/api/games")
     def create_game() -> dict[str, object]:
         game_id, state = game_store.create()
-        return {"game_id": game_id, "state": state.to_dict()}
+        return game_store.snapshot(game_id) or {"game_id": game_id, "state": state.to_dict()}
 
     @app.get("/api/games/{game_id}")
     def get_game(game_id: str) -> dict[str, object]:
-        state = game_store.get(game_id)
-        if state is None:
+        snapshot = game_store.snapshot(game_id)
+        if snapshot is None:
             raise HTTPException(status_code=404, detail="unknown game")
-        return {"game_id": game_id, "state": state.to_dict()}
+        return snapshot
 
     @app.post("/api/games/{game_id}/moves")
     def make_move(game_id: str, payload: dict[str, Any]) -> dict[str, object]:
@@ -219,21 +239,21 @@ def create_app(
         stored_state = game_store.push(game_id, next_state)
         if stored_state is None:
             raise HTTPException(status_code=404, detail="unknown game")
-        return {"game_id": game_id, "state": stored_state.to_dict()}
+        return game_store.snapshot(game_id) or {"game_id": game_id, "state": stored_state.to_dict()}
 
     @app.post("/api/games/{game_id}/undo")
     def undo(game_id: str) -> dict[str, object]:
         state = game_store.undo(game_id)
         if state is None:
             raise HTTPException(status_code=404, detail="unknown game")
-        return {"game_id": game_id, "state": state.to_dict()}
+        return game_store.snapshot(game_id) or {"game_id": game_id, "state": state.to_dict()}
 
     @app.post("/api/games/{game_id}/redo")
     def redo(game_id: str) -> dict[str, object]:
         state = game_store.redo(game_id)
         if state is None:
             raise HTTPException(status_code=404, detail="unknown game")
-        return {"game_id": game_id, "state": state.to_dict()}
+        return game_store.snapshot(game_id) or {"game_id": game_id, "state": state.to_dict()}
 
     @app.get("/api/games/{game_id}/export")
     def export_game(game_id: str) -> dict[str, object]:
@@ -253,7 +273,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         game_id, state = game_store.create(state)
-        return {"game_id": game_id, "state": state.to_dict()}
+        return game_store.snapshot(game_id) or {"game_id": game_id, "state": state.to_dict()}
 
     @app.post("/api/rooms")
     def create_room(payload: dict[str, Any]) -> dict[str, object]:
@@ -374,6 +394,10 @@ def create_app(
                     await websocket.send_json({"type": "pong"})
                 elif message_type == "move":
                     await _handle_socket_move(room_store, room_id, token, message)
+                elif message_type == "resign":
+                    await _handle_socket_resign(room_store, room_id, token, message)
+                elif message_type == "draw":
+                    await _handle_socket_draw(room_store, room_id, token, message)
                 elif message_type == "leave":
                     room = room_store.disconnect(room_id, token)
                     if room:
@@ -424,6 +448,42 @@ async def _handle_socket_move(
         return
     try:
         room = room_store.apply_move(room_id, token, move_value, version_value)
+    except RoomError as exc:
+        if connection:
+            await connection.send_json({"type": "move_rejected", "error": str(exc)})
+        return
+    await _broadcast_room_state(room)
+
+
+async def _handle_socket_resign(
+    room_store: OnlineRoomStore, room_id: str, token: str, message: dict[str, Any]
+) -> None:
+    version_value = message.get("version")
+    connection = room_store.get_room(room_id).connections.get(token)
+    if not isinstance(version_value, int):
+        if connection:
+            await connection.send_json({"type": "move_rejected", "error": "version required"})
+        return
+    try:
+        room = room_store.resign(room_id, token, version_value)
+    except RoomError as exc:
+        if connection:
+            await connection.send_json({"type": "move_rejected", "error": str(exc)})
+        return
+    await _broadcast_room_state(room)
+
+
+async def _handle_socket_draw(
+    room_store: OnlineRoomStore, room_id: str, token: str, message: dict[str, Any]
+) -> None:
+    version_value = message.get("version")
+    connection = room_store.get_room(room_id).connections.get(token)
+    if not isinstance(version_value, int):
+        if connection:
+            await connection.send_json({"type": "move_rejected", "error": "version required"})
+        return
+    try:
+        room = room_store.offer_or_accept_draw(room_id, token, version_value)
     except RoomError as exc:
         if connection:
             await connection.send_json({"type": "move_rejected", "error": str(exc)})
