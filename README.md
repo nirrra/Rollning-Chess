@@ -8,22 +8,27 @@ Implementation order:
 2. Local Python backend plus browser UI.
 3. Product extensions after the core game is stable.
 
+Install from the repository root:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
 Run tests:
 
-```powershell
+```bash
 python -m pytest
 ```
 
 Run the CLI:
 
-```powershell
+```bash
 python -m rolling_chess.cli
 ```
 
 Run the local browser UI:
 
-```powershell
-$env:PYTHONPATH='src'
+```bash
 python -m rolling_chess.web --host 127.0.0.1 --port 8000
 ```
 
@@ -31,8 +36,7 @@ Then open `http://127.0.0.1:8000/`.
 
 Run LAN play:
 
-```powershell
-$env:PYTHONPATH='src'
+```bash
 python -m rolling_chess.web --host 0.0.0.0 --port 8000
 ```
 
@@ -51,3 +55,16 @@ There are two ways to start a LAN match:
    - The other device opens the link, enters a nickname if needed, and joins the room.
 
 Use the host machine's LAN IP, not `127.0.0.1`, for other devices.
+
+If you run without installing the package first, add `src` to `PYTHONPATH`:
+
+```bash
+PYTHONPATH=src python -m rolling_chess.web --host 127.0.0.1 --port 8000
+```
+
+In PowerShell, use:
+
+```powershell
+$env:PYTHONPATH='src'
+python -m rolling_chess.web --host 127.0.0.1 --port 8000
+```
