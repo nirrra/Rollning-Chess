@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: ["main", "master"]
   pull_request:
     branches: ["main", "master"]
 
@@ -40,4 +38,3 @@ jobs:
 
       - name: Check frontend JavaScript
         run: node --check frontend/src/main.js
-
