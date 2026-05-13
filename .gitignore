@@ -10,3 +10,4 @@ models/*.pt
 build/
 dist/
 *.spec
+*.exe
