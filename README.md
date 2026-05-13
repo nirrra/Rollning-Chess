@@ -14,6 +14,23 @@ Install from the repository root:
 python -m pip install -r requirements.txt
 ```
 
+For local play on Windows, the easiest path is the one-click launcher:
+
+```bash
+python -m rolling_chess.launcher
+```
+
+It starts the local web server, automatically chooses another port if `8000` is unavailable, and opens the game in your default browser. If the browser does not open, copy the URL printed in the launcher window.
+
+Build a Windows executable from the repository root:
+
+```powershell
+python -m pip install -e ".[windows]"
+python scripts\build_windows_exe.py
+```
+
+The executable is written to `dist\RollingChess.exe`. Share that file with players who only need to double-click and play locally.
+
 Run tests:
 
 ```bash
@@ -33,6 +50,8 @@ python -m rolling_chess.web --host 127.0.0.1 --port 8000
 ```
 
 Then open `http://127.0.0.1:8000/`.
+
+If `8000` is unavailable, the web command automatically tries fallback local ports and prints the final URL. Use `--strict-port` only when you want startup to fail instead of falling back.
 
 Run LAN play:
 

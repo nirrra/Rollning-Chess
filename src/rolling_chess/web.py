@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import mimetypes
+import socket
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Iterable
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -21,6 +23,24 @@ DEFAULT_GAME_TTL_SECONDS = 6 * 60 * 60
 DEFAULT_MAX_GAME_SESSIONS = 128
 DEFAULT_MAX_UNDO_STATES = 257
 DEFAULT_MAX_IMPORT_HISTORY = 512
+DEFAULT_WEB_HOST = "127.0.0.1"
+DEFAULT_WEB_PORT = 8000
+DEFAULT_PORT_CANDIDATES = (
+    DEFAULT_WEB_PORT,
+    3000,
+    5173,
+    8080,
+    8100,
+    8200,
+    8765,
+    8888,
+    9000,
+    10000,
+)
+
+
+class PortSelectionError(RuntimeError):
+    """Raised when no local TCP port can be selected for the web server."""
 
 
 def _utc_now() -> datetime:
@@ -518,11 +538,70 @@ def _serve_static(frontend_dir: Path, path: str) -> Response:
 
 
 def _default_frontend_dir() -> Path:
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        bundled_frontend = Path(bundle_root) / "frontend"
+        if bundled_frontend.exists():
+            return bundled_frontend
+
     project_root = Path(__file__).resolve().parents[2]
     cwd_frontend = Path.cwd() / "frontend"
     if cwd_frontend.exists():
         return cwd_frontend
     return project_root / "frontend"
+
+
+def select_port(
+    host: str = DEFAULT_WEB_HOST,
+    requested_port: int | None = None,
+    candidates: Iterable[int] = DEFAULT_PORT_CANDIDATES,
+) -> int:
+    for port in _candidate_ports(requested_port, candidates):
+        available_port = _probe_port(host, port)
+        if available_port is not None:
+            return available_port
+
+    os_assigned_port = _probe_port(host, 0)
+    if os_assigned_port is not None:
+        return os_assigned_port
+
+    raise PortSelectionError(f"could not find an available port on {host}")
+
+
+def _candidate_ports(
+    requested_port: int | None, candidates: Iterable[int]
+) -> Iterable[int]:
+    seen: set[int] = set()
+    if requested_port is not None:
+        _validate_port(requested_port)
+        seen.add(requested_port)
+        yield requested_port
+
+    for port in candidates:
+        _validate_port(port)
+        if port in seen:
+            continue
+        seen.add(port)
+        yield port
+
+
+def _validate_port(port: int) -> None:
+    if not 0 <= port <= 65535:
+        raise ValueError(f"port must be between 0 and 65535: {port}")
+
+
+def _probe_port(host: str, port: int) -> int | None:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((host, port))
+            return int(sock.getsockname()[1])
+    except OSError:
+        return None
+
+
+def local_url(host: str, port: int) -> str:
+    display_host = "127.0.0.1" if host in {"", "0.0.0.0"} else host
+    return f"http://{display_host}:{port}/"
 
 
 def _nickname_from_payload(payload: dict[str, Any]) -> str:
@@ -558,10 +637,24 @@ def _move_text_from_payload(payload: dict[str, object]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the local Rolling Chess web server.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--host", default=DEFAULT_WEB_HOST)
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help=f"Preferred port. Defaults to {DEFAULT_WEB_PORT} with automatic fallback.",
+    )
+    parser.add_argument(
+        "--strict-port",
+        action="store_true",
+        help="Fail instead of trying fallback ports when the requested port is unavailable.",
+    )
     args = parser.parse_args()
-    uvicorn.run(create_app(), host=args.host, port=args.port)
+    port = args.port if args.strict_port else select_port(args.host, args.port)
+    if port is None:
+        port = DEFAULT_WEB_PORT
+    print(f"Rolling Chess web server: {local_url(args.host, port)}", flush=True)
+    uvicorn.run(create_app(), host=args.host, port=port)
 
 
 if __name__ == "__main__":

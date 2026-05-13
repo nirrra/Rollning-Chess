@@ -21,10 +21,14 @@ dependencies = [
 ai = [
   "torch>=2.2",
 ]
+windows = [
+  "pyinstaller>=6.0",
+]
 
 [project.scripts]
 rolling-chess = "rolling_chess.cli:main"
 rolling-chess-ai = "rolling_chess.ai.cli:main"
+rolling-chess-play = "rolling_chess.launcher:main"
 rolling-chess-web = "rolling_chess.web:main"
 
 [tool.setuptools.packages.find]
@@ -33,4 +37,4 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --basetemp=.pytest_tmp"
